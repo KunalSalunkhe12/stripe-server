@@ -27,6 +27,7 @@ This server implements a Node.js Express application that handles Stripe subscri
    ```
    STRIPE_SECRET_KEY=your_stripe_secret_key
    STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+   FRONTEND_URL=your_frontend_url
    ```
 
 ## Configuration

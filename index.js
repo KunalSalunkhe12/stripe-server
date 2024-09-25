@@ -70,8 +70,8 @@ app.post("/create-checkout-session", async (req, res) => {
         },
       ],
       mode: "subscription",
-      success_url: "http://localhost:3000/pricing?success=true",
-      cancel_url: "http://localhost:3000/pricing?canceled=true",
+      success_url: `${process.env.FRONTEND_URL}/pricing`,
+      cancel_url: `${process.env.FRONTEND_URL}/pricing`,
     });
 
     res.json({ sessionId: session.id });
