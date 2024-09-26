@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const stripe = require("stripe");
 const dotenv = require("dotenv");
+const dbConnect = require("./db/connectDB");
+const Payment = require("./db/payment.model");
 
 dotenv.config();
 
@@ -37,7 +39,7 @@ const plans = {
 };
 
 app.post("/create-checkout-session", async (req, res) => {
-  const { plan, billingPeriod } = req.body;
+  const { plan, billingPeriod, email } = req.body;
 
   console.log("plan", plan);
   console.log("billingCycle", billingPeriod);
@@ -60,12 +62,13 @@ app.post("/create-checkout-session", async (req, res) => {
   try {
     const session = await stripeClient.checkout.sessions.create({
       payment_method_types: ["card"],
+      customer_email: email,
       line_items: [
         {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `AgentCoach.AI ${selectedPlan.name} Plan (${billingPeriod})`,
+              name: `${selectedPlan.name}`,
               description: selectedPlan.description,
             },
             recurring: {
@@ -79,6 +82,14 @@ app.post("/create-checkout-session", async (req, res) => {
       mode: "subscription",
       success_url: `${process.env.FRONTEND_URL}/pricing`,
       cancel_url: `${process.env.FRONTEND_URL}/pricing`,
+      metadata: {
+        planName: selectedPlan.name,
+        planDescription: selectedPlan.description,
+        monthlyPrice: selectedPlan.monthlyPrice.toString(),
+        annualPrice: selectedPlan.annualPrice.toString(),
+        selectedBillingPeriod: billingPeriod,
+        selectedPrice: price.toString(),
+      },
     });
 
     res.json({ sessionId: session.id });
@@ -141,8 +152,40 @@ app.post(
       case "customer.subscription.created":
         const subscriptionCreated = event.data.object;
         // Handle subscription created
-        console.log("Subscription created:", subscriptionCreated.id);
+        console.log("Subscription created:", subscriptionCreated);
         // TODO: Update user's subscription status in your database
+        try {
+          await dbConnect();
+          const customer = await stripeClient.customers.retrieve(
+            subscriptionCreated.customer
+          );
+
+          // Retrieve the product details
+          const product = await stripeClient.products.retrieve(
+            subscriptionCreated.plan.product
+          );
+
+          const newPayment = new Payment({
+            userEmail: customer.email,
+            tier: product.name.toLowerCase(),
+            subscriptionId: subscriptionCreated.id,
+            planDetails: {
+              name: product.name,
+              description: product.description,
+              billingPeriod: subscriptionCreated.plan.interval,
+              price: subscriptionCreated.plan.amount,
+            },
+            status: subscriptionCreated.status,
+            currentPeriodEnd: new Date(
+              subscriptionCreated.current_period_end * 1000
+            ),
+          });
+
+          await newPayment.save();
+          console.log("Payment record created:", newPayment);
+        } catch (error) {
+          console.error("Error creating payment record:", error);
+        }
         break;
       case "customer.subscription.updated":
         const subscriptionUpdated = event.data.object;
@@ -156,18 +199,6 @@ app.post(
         console.log("Subscription canceled:", subscriptionDeleted.id);
         // TODO: Update user's subscription status in your database
         break;
-      case "invoice.payment_succeeded":
-        const invoice = event.data.object;
-        // Handle successful payment
-        console.log("Payment succeeded for invoice:", invoice.id);
-        // TODO: Update user's payment status in your database
-        break;
-      case "invoice.payment_failed":
-        const failedInvoice = event.data.object;
-        // Handle failed payment
-        console.log("Payment failed for invoice:", failedInvoice.id);
-        // TODO: Notify user of failed payment and update status in your database
-        break;
       default:
         console.log(`Unhandled event type ${event.type}`);
     }
@@ -177,6 +208,12 @@ app.post(
   }
 );
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+async function start() {
+  await dbConnect();
+
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
+}
+
+start();
