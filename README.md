@@ -36,10 +36,21 @@ The server uses the following environment variables:
 
 - `STRIPE_SECRET_KEY`: Your Stripe secret key
 - `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook secret
+- `FRONTEND_URL`: The URL of your frontend application
+- `MONGODB_URI` : The MongoDB URI for your database
 
 Make sure these are set in your `.env` file or in your deployment environment.
 
 ## API Endpoints
+
+### GET /payments
+
+Retrieves a list of payment intents.
+
+**Response:**
+
+- Success: `{ payments: <payments[]> }`
+- Error: `{ error: <error_message> }`
 
 ### POST /create-checkout-session
 

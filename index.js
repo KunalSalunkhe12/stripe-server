@@ -158,59 +158,46 @@ app.post(
     }
 
     // Handle the event
-    switch (event.type) {
-      case "customer.subscription.created":
-        const subscriptionCreated = event.data.object;
-        // Handle subscription created
-        console.log("Subscription created:", subscriptionCreated);
-        try {
-          const customer = await stripeClient.customers.retrieve(
-            subscriptionCreated.customer
-          );
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
 
-          // Retrieve the product details
-          const product = await stripeClient.products.retrieve(
-            subscriptionCreated.plan.product
-          );
+      try {
+        // Retrieve the subscription details
+        const subscription = await stripeClient.subscriptions.retrieve(
+          session.subscription
+        );
 
-          const newPayment = new Payment({
-            userEmail: customer.email,
-            tier: product.name.toLowerCase(),
-            subscriptionId: subscriptionCreated.id,
-            planDetails: {
-              name: product.name,
-              description: product.description,
-              billingPeriod: subscriptionCreated.plan.interval,
-              price: subscriptionCreated.plan.amount,
-            },
-            status: subscriptionCreated.status,
-            currentPeriodEnd: new Date(
-              subscriptionCreated.current_period_end * 1000
-            ),
-          });
+        // Retrieve the customer details
+        const customer = await stripeClient.customers.retrieve(
+          session.customer
+        );
 
-          await newPayment.save();
-          console.log("Payment record created:", newPayment);
-        } catch (error) {
-          console.error("Error creating payment record:", error);
-        }
-        break;
-      case "customer.subscription.updated":
-        const subscriptionUpdated = event.data.object;
-        // Handle subscription update
-        console.log("Subscription updated:", subscriptionUpdated.id);
-        // TODO: Update user's subscription details in your database
-        break;
-      case "customer.subscription.deleted":
-        const subscriptionDeleted = event.data.object;
-        // Handle subscription cancellation
-        console.log("Subscription canceled:", subscriptionDeleted.id);
-        // TODO: Update user's subscription status in your database
-        break;
-      default:
-        console.log(`Unhandled event type ${event.type}`);
+        // Retrieve the product details
+        const product = await stripeClient.products.retrieve(
+          subscription.plan.product
+        );
+
+        // Create a new payment record
+        const newPayment = new Payment({
+          userEmail: customer.email,
+          tier: product.name.toLowerCase(),
+          subscriptionId: subscription.id,
+          planDetails: {
+            name: product.name,
+            description: product.description,
+            billingPeriod: subscription.plan.interval,
+            price: subscription.plan.amount,
+          },
+          status: subscription.status,
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        });
+
+        await newPayment.save();
+        console.log("Payment record created:", newPayment);
+      } catch (error) {
+        console.error("Error processing checkout.session.completed:", error);
+      }
     }
-
     // Return a response to acknowledge receipt of the event
     res.json({ received: true });
   }
