@@ -38,6 +38,16 @@ const plans = {
   },
 };
 
+app.get("/payments", async (req, res) => {
+  try {
+    const payments = await Payment.find({});
+    res.json(payments);
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
 app.post("/create-checkout-session", async (req, res) => {
   const { plan, billingPeriod, email } = req.body;
 
@@ -153,9 +163,7 @@ app.post(
         const subscriptionCreated = event.data.object;
         // Handle subscription created
         console.log("Subscription created:", subscriptionCreated);
-        // TODO: Update user's subscription status in your database
         try {
-          await dbConnect();
           const customer = await stripeClient.customers.retrieve(
             subscriptionCreated.customer
           );
