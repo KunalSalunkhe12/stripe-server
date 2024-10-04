@@ -113,14 +113,6 @@ The server implements error handling for various scenarios:
 
 Errors are logged to the console and appropriate error responses are sent to the client.
 
-## TODO Items
-
-The following items need to be implemented:
-
-1. Update user's subscription status in your database when subscription events occur
-2. Update user's subscription details in your database when a subscription is updated
-3. Update user's payment status in your database when a payment succeeds or fails
-
 ## Running the Server
 
 To start the server, run:
