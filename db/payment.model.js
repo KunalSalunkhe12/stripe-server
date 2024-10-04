@@ -11,6 +11,10 @@ const PaymentSchema = new mongoose.Schema({
     required: [true, "Please specify the tier"],
     enum: ["free", "individual", "team", "organization"],
   },
+  customerId: {
+    type: String,
+    required: [true, "Please provide a Customer"],
+  },
   subscriptionId: {
     type: String,
     required: [true, "Please provide a Subscription ID"],

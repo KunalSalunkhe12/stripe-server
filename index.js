@@ -72,7 +72,6 @@ app.post("/create-checkout-session", async (req, res) => {
   try {
     const session = await stripeClient.checkout.sessions.create({
       payment_method_types: ["card"],
-      customer_email: email,
       line_items: [
         {
           price_data: {
@@ -181,6 +180,7 @@ app.post(
         const newPayment = new Payment({
           userEmail: customer.email,
           tier: product.name.toLowerCase(),
+          customerId: customer.id,
           subscriptionId: subscription.id,
           planDetails: {
             name: product.name,
