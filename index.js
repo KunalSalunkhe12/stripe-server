@@ -4,6 +4,7 @@ const stripe = require("stripe");
 const dotenv = require("dotenv");
 const dbConnect = require("./db/connectDB");
 const Payment = require("./db/payment.model");
+const updateClerkUser = require("./utils/updateClerkUser");
 
 dotenv.config();
 
@@ -48,8 +49,20 @@ app.get("/payments", async (req, res) => {
   }
 });
 
+app.get("/payments/:email", async (req, res) => {
+  const { email } = req.params;
+
+  try {
+    const paymentInfo = await Payment.find({ userEmail: email });
+    res.json(paymentInfo);
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
 app.post("/create-checkout-session", async (req, res) => {
-  const { plan, billingPeriod, email } = req.body;
+  const { plan, billingPeriod, clerkEmail, clerkUserId } = req.body;
 
   console.log("plan", plan);
   console.log("billingCycle", billingPeriod);
@@ -89,9 +102,11 @@ app.post("/create-checkout-session", async (req, res) => {
         },
       ],
       mode: "subscription",
-      success_url: `${process.env.FRONTEND_URL}/pricing`,
-      cancel_url: `${process.env.FRONTEND_URL}/pricing`,
+      success_url: `${process.env.FRONTEND_URL}/`,
+      cancel_url: `${process.env.FRONTEND_URL}/`,
       metadata: {
+        clerkEmail: clerkEmail,
+        clerkUserId: clerkUserId,
         planName: selectedPlan.name,
         planDescription: selectedPlan.description,
         monthlyPrice: selectedPlan.monthlyPrice.toString(),
@@ -99,6 +114,8 @@ app.post("/create-checkout-session", async (req, res) => {
         selectedBillingPeriod: billingPeriod,
         selectedPrice: price.toString(),
       },
+      customer_email: clerkEmail,
+      billing_address_collection: "auto",
     });
 
     res.json({ sessionId: session.id });
@@ -193,6 +210,7 @@ app.post(
         });
 
         await newPayment.save();
+        await updateClerkUser(newPayment);
         console.log("Payment record created:", newPayment);
       } catch (error) {
         console.error("Error processing checkout.session.completed:", error);
