@@ -209,9 +209,9 @@ app.post(
           currentPeriodEnd: new Date(subscription.current_period_end * 1000),
         });
 
-        await newPayment.save();
-        await updateClerkUser(newPayment);
-        console.log("Payment record created:", newPayment);
+        const payment = await newPayment.save();
+        console.log("Payment record created:", payment);
+        await updateClerkUser(payment);
       } catch (error) {
         console.error("Error processing checkout.session.completed:", error);
       }
