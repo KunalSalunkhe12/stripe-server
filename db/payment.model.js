@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const PaymentSchema = new mongoose.Schema({
   userEmail: {
     type: String,
+    unique: true,
     required: [true, "Please provide a user email"],
     maxlength: [100, "Email cannot be more than 100 characters"],
   },
@@ -58,6 +59,10 @@ const PaymentSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  cancelAtPeriodEnd: {
+    type: Boolean,
+    default: false,
   },
 });
 

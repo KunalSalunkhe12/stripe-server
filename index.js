@@ -125,34 +125,24 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-// New route to cancel a subscription
-app.post("/cancel-subscription", async (req, res) => {
-  const { subscriptionId } = req.body;
-
-  if (!subscriptionId) {
-    return res.status(400).json({ error: "Subscription ID is required" });
-  }
-
+app.post("/create-customer-portal-session", async (req, res) => {
   try {
-    const subscription = await stripeClient.subscriptions.update(
-      subscriptionId,
-      {
-        cancel_at_period_end: true,
-      }
-    );
+    // In a real application, you would get the customer ID from the authenticated session
+    const { email } = req.body;
+    const customerPayment = await Payment.findOne({ userEmail: email });
 
-    console.log("Subscription scheduled for cancellation:", subscription.id);
-
-    // TODO: Update user's subscription status in your database to reflect pending cancellation
-
-    res.json({
-      message:
-        "Subscription scheduled for cancellation at the end of the billing period",
-      cancellationDate: new Date(subscription.cancel_at * 1000).toISOString(),
+    if (!customerPayment) {
+      return res.status(400).json({ error: "Customer not found" });
+    }
+    const session = await stripeClient.billingPortal.sessions.create({
+      customer: customerPayment.customerId,
+      return_url: `${process.env.FRONTEND_URL}/`,
     });
+
+    res.json({ url: session.url });
   } catch (error) {
-    console.error("Error cancelling subscription:", error);
-    res.status(500).json({ error: "Failed to cancel subscription" });
+    console.error("Error creating portal session:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -174,47 +164,108 @@ app.post(
     }
 
     // Handle the event
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object;
+    switch (event.type) {
+      case "checkout.session.completed":
+        const session = event.data.object;
 
-      try {
-        // Retrieve the subscription details
-        const subscription = await stripeClient.subscriptions.retrieve(
-          session.subscription
-        );
+        try {
+          // Retrieve the subscription details
+          const subscription = await stripeClient.subscriptions.retrieve(
+            session.subscription
+          );
 
-        // Retrieve the customer details
-        const customer = await stripeClient.customers.retrieve(
-          session.customer
-        );
+          // Retrieve the customer details
+          const customer = await stripeClient.customers.retrieve(
+            session.customer
+          );
 
-        // Retrieve the product details
-        const product = await stripeClient.products.retrieve(
-          subscription.plan.product
-        );
+          // Retrieve the product details
+          const product = await stripeClient.products.retrieve(
+            subscription.plan.product
+          );
 
-        // Create a new payment record
-        const newPayment = new Payment({
-          userEmail: customer.email,
-          tier: product.name.toLowerCase(),
-          customerId: customer.id,
-          subscriptionId: subscription.id,
-          planDetails: {
-            name: product.name,
-            description: product.description,
-            billingPeriod: subscription.plan.interval,
-            price: subscription.plan.amount,
-          },
-          status: subscription.status,
-          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        });
+          // Create a new payment record
+          const newPayment = new Payment({
+            userEmail: customer.email,
+            tier: product.name.toLowerCase(),
+            customerId: customer.id,
+            subscriptionId: subscription.id,
+            planDetails: {
+              name: product.name,
+              description: product.description,
+              billingPeriod: subscription.plan.interval,
+              price: subscription.plan.amount,
+            },
+            status: subscription.status,
+            currentPeriodEnd: subscription.current_period_end,
+            cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          });
 
-        const payment = await newPayment.save();
-        console.log("Payment record created:", payment);
-        await updateClerkUser(payment);
-      } catch (error) {
-        console.error("Error processing checkout.session.completed:", error);
-      }
+          const payment = await newPayment.save();
+          console.log("Payment record created:", payment);
+          await updateClerkUser(payment);
+        } catch (error) {
+          console.error("Error processing checkout.session.completed:", error);
+        }
+        break;
+
+      case "customer.subscription.updated":
+        const subscription = event.data.object;
+        console.log("Subscription updated:", subscription);
+        try {
+          // Find the payment record associated with this subscription
+          const payment = await Payment.findOne({
+            subscriptionId: subscription.id,
+          });
+
+          if (payment) {
+            payment.status = subscription.status;
+            payment.currentPeriodEnd = subscription.current_period_end;
+            payment.cancelAtPeriodEnd = subscription.cancel_at_period_end;
+
+            await payment.save();
+            await updateClerkUser(payment);
+          } else {
+            console.log(
+              "No payment record found for canceled subscription:",
+              deletedSubscription.id
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Error processing customer.subscription.deleted:",
+            error
+          );
+        }
+        break;
+      case "customer.subscription.deleted":
+        const deletedSubscription = event.data.object;
+        try {
+          // Find the payment record associated with this subscription
+          const payment = await Payment.findOne({
+            subscriptionId: deletedSubscription.id,
+          });
+
+          if (payment) {
+            await updateClerkUser({
+              userEmail: payment.userEmail,
+              tier: "free",
+            });
+            await Payment.deleteOne({ subscriptionId: deletedSubscription.id });
+          } else {
+            console.log(
+              "No payment record found for canceled subscription:",
+              deletedSubscription.id
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Error processing customer.subscription.deleted:",
+            error
+          );
+        }
+      default:
+        console.log(`Unhandled event type ${event.type}`);
     }
     // Return a response to acknowledge receipt of the event
     res.json({ received: true });
