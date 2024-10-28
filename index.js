@@ -153,7 +153,7 @@ app.post(
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET; // Add this to your .env file
-
+    console.log("webhook triggered");
     let event;
 
     try {
@@ -162,7 +162,7 @@ app.post(
       console.error(`Webhook Error: ${err.message}`);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-
+    console.log("webhook type",event.type);
     // Handle the event
     switch (event.type) {
       case "checkout.session.completed":
