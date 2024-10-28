@@ -27,14 +27,14 @@ app.use((req, res, next) => {
 const plans = {
   individual: {
     name: "Individual",
-    monthlyPrice: 2995, // $29.95
-    annualPrice: 28500, // $285
+    monthlyPrice: 1995, // $19.95
+    annualPrice: 17955, // $179.55
     description: "Advanced coaching for professionals",
   },
   team: {
     name: "Team",
-    monthlyPrice: 4995, // $49.95
-    annualPrice: 44500, // $445
+    monthlyPrice: 3995, // $39.95
+    annualPrice: 35955, // $359.55
     description: "Comprehensive solution for teams",
   },
 };
